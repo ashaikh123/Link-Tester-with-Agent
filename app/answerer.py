@@ -6,9 +6,11 @@ fake = Faker()
 def answer_question(question_text: str, profile: dict) -> str:
     q_lower = question_text.lower()
     print(f"Getting answer - for {q_lower}")
-    time.sleep(2)
-    if 'age' in q_lower:
+    #time.sleep(2)
+    if 'age' in q_lower or 'how old are you' in q_lower:
         return str(profile['age'])
+    elif 'postcode' in q_lower:
+        return str(profile['au_postcode'])
     elif 'gender' in q_lower:
         return profile['gender'].capitalize()
     elif 'income' in q_lower:
