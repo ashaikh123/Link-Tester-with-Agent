@@ -9,6 +9,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
 
+
 def run_survey(driver, survey_url: str, profile: dict):
     driver.get(survey_url)
     DEBUG_MODE = False
@@ -114,11 +115,11 @@ def run_survey(driver, survey_url: str, profile: dict):
 
 
 
-
+                # textarea
                 try:
                     textarea = q_block.find_element(By.TAG_NAME, 'textarea')
                     if textarea.is_displayed() and textarea.is_enabled():
-                        print(f"textarea found")
+                        print(f"✅ textarea found")
                         textarea.clear()
                         textarea.send_keys(answer)
                         print(f"Answer {answer}")
@@ -130,14 +131,117 @@ def run_survey(driver, survey_url: str, profile: dict):
                 except:
                     pass
 
+                # button rating     
+                try:
+                    button_rating_blocks = q_block.find_elements(By.CSS_SELECTOR, ".sq-atmrating-container")
+                    if button_rating_blocks:
+                        print("✅ button rating question found")
+
+                        for block in button_rating_blocks:
+                            try:
+                                # Get the visible rating buttons inside the container
+                                buttons_container = block.find_element(By.CLASS_NAME, "atmrating_input")
+                                buttons = buttons_container.find_elements(By.CLASS_NAME, "atmrating-btn")
+                                
+                                if not buttons:
+                                    print("⚠️ No visible buttons found in atmrating_input.")
+                                    continue
+
+                                # Randomly select a rating button and click it
+                                selected = random.choice(buttons)
+                                driver.execute_script("arguments[0].scrollIntoView(true);", selected)
+                                time.sleep(0.2)
+                                selected.click()
+                                print(f"➡️ Clicked rating button: {buttons.index(selected)+1}")
+                                handled = True
+
+                            except Exception as e:
+                                print(f"⚠️ Failed to click rating button: {e}")
+
+                        if DEBUG_MODE:
+                            input("🔍 Press Enter to continue...")
+
+                        continue
+                except Exception as e:
+                    print(f"⚠️ Button rating handler error: {e}")
 
 
+                # slider
+                try:
+                    slider_blocks = q_block.find_elements(By.CSS_SELECTOR, ".sq-sliderpoints-container")
+                    if slider_blocks:
+                        print("✅ slider question found")
+
+                    for block in slider_blocks:
+                        try:
+                            slider = block.find_element(By.CLASS_NAME, "ui-slider")
+                            handle = slider.find_element(By.CLASS_NAME, "ui-slider-handle")
+                            
+                            # Scroll into view
+                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", slider)
+                            time.sleep(0.2)
+
+                            # Get width of slider bar
+                            slider_width = slider.size['width']
+                            
+                            # Random offset between 10% to 90% of width
+                            offset = int(slider_width * random.uniform(0.1, 0.9))
+                            handled = True
+                            # Drag handle to the offset
+                            ActionChains(driver).click_and_hold(handle).move_by_offset(offset, 0).release().perform()
+                            print(f"✅ Slider moved by offset: {offset}px")
+
+                        except Exception as e:
+                            print(f"⚠️ Failed to move slider: {e}")
+                    
+                    
+
+                except Exception as e:
+                    print(f"⚠️ Slider question handling failed: {e}")
 
 
+                # Button-style single-select radio
+                try:
+                    button_radios = q_block.find_elements(By.CSS_SELECTOR, 'li.sq-atm1d-button.clickable')
+                    if button_radios:
+                        print("✅ button-style radio found")
+                        # Select one at random
+                        selected_button = random.choice(button_radios)
+
+                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", selected_button)
+                        try:
+                            # Try normal click
+                            ActionChains(driver).move_to_element(selected_button).click().perform()
+                            WebDriverWait(driver, 3).until(
+                                lambda d: selected_button.get_attribute('aria-checked') == 'true'
+                            )
+                        except Exception:
+                            # Fallback to space press
+                            selected_button.send_keys(Keys.SPACE)
+                            WebDriverWait(driver, 3).until(
+                                lambda d: selected_button.get_attribute('aria-checked') == 'true'
+                            )
+
+                        # --- Handle Other Specify ---
+                        try:
+                            possible_inputs = selected_button.find_elements(By.CSS_SELECTOR, "input[type='text'], textarea")
+                            for inp in possible_inputs:
+                                if inp.is_displayed() and inp.is_enabled():
+                                    inp.clear()
+                                    inp.send_keys(answer if answer else "Other response")
+                                    break
+                        except:
+                            pass
+
+                        handled = True
+                        if DEBUG_MODE:
+                            input("🔍 Press Enter to proceed to next step...")
+                        continue
+                except Exception as e:
+                    print(f"⚠️ Button radio logic failed: {e}")
 
 
-
-
+                # Radio grid
                 try:
                     grids = q_block.find_elements(By.CSS_SELECTOR, 'table.grid')
                     for grid in grids:
@@ -145,30 +249,54 @@ def run_survey(driver, survey_url: str, profile: dict):
                         if not rows:
                             continue
 
-                        grid_is_valid = all(
-                            len(row.find_elements(By.CSS_SELECTOR, 'input[type=radio]')) >= 2
-                            for row in rows
-                        )
-                        if not grid_is_valid:
+                        # Validate the grid
+                        if not all(len(row.find_elements(By.CSS_SELECTOR, 'input[type=radio]')) >= 2 for row in rows):
                             continue
 
-                        print("✅ grid question confirmed")
-                        for row in rows:
-                            radios = row.find_elements(By.CSS_SELECTOR, 'input[type=radio]')
-                            radios = [r for r in radios if r.is_displayed() and r.is_enabled()]
-                            if not radios:
-                                continue
-                            selected = random.choice(radios)
-                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", selected)
-                            driver.execute_script("arguments[0].click();", selected)
-                            time.sleep(0.2)  # small wait for UI feedback
+                        print("✅ grid question found")
 
-                        handled = True
+                        # Scroll the whole grid into view
+                        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", grid)
+                        time.sleep(0.3)
+
+                        grid_filled = False
+
+                        for i, row in enumerate(rows):
+                            try:
+                                radios = row.find_elements(By.CSS_SELECTOR, 'input[type=radio]')
+                                radios = [r for r in radios if r.is_enabled()]
+
+                                if not radios:
+                                    print(f"⚠️ No enabled radios in row {i+1}")
+                                    continue
+
+                                selected = random.choice(radios)
+
+                                # Try to scroll & click using JS fallback
+                                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", selected)
+                                driver.execute_script("arguments[0].click();", selected)
+                                #print(f"➡️ Clicked radio in row {i+1}")
+                                time.sleep(0.2)
+                                grid_filled = True
+
+                            except Exception as e:
+                                print(f"⚠️ Could not interact with row {i+1}: {e}")
+                                continue
+
+                        if grid_filled:
+                            handled = True
+                        else:
+                            print("❌ Grid visible but no radio options were clickable.")
+
                         if DEBUG_MODE:
-                            input("🔍 Press Enter to proceed to next step...")
-                        continue
+                            input("🔍 Press Enter to continue...")
+
+                        continue  # move to next question block
+
                 except Exception as e:
                     print(f"⚠️ Grid answer error: {e}")
+
+
 
 
 
@@ -176,7 +304,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                 try:
                     radios = q_block.find_elements(By.CSS_SELECTOR, 'input[type=radio]')
                     if radios:
-                        print("radio found")
+                        print("✅ radio found")
                         # choose one radio at random
                         selected = random.choice(radios)
                         # click the radio (JavaScript click works too)
@@ -211,7 +339,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                 try:
                     button_checkboxes = q_block.find_elements(By.CSS_SELECTOR, 'li.sq-atm1d-button.clickable')
                     if button_checkboxes:
-                        print("checkbox found button")
+                        print("✅ button style checkbox found")
                         # choose a random number of options to select (1–2 or up to available)
                         max_to_select = min(2, len(button_checkboxes))
                         num_to_select = random.randint(1, max_to_select)
@@ -251,11 +379,73 @@ def run_survey(driver, survey_url: str, profile: dict):
                 except:
                     pass
 
+
+                # checkbox grid
+                try:
+                    grids = q_block.find_elements(By.CSS_SELECTOR, 'table.grid')
+                    for grid in grids:
+                        rows = grid.find_elements(By.CSS_SELECTOR, 'tr.row.row-elements')
+                        if not rows:
+                            continue
+
+                        # Validate if it's a checkbox grid
+                        grid_is_checkbox = all(
+                            len(row.find_elements(By.CSS_SELECTOR, 'input[type=checkbox]')) >= 1
+                            for row in rows
+                        )
+                        if not grid_is_checkbox:
+                            continue
+
+                        print("✅ checkbox grid question found")
+                        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", grid)
+                        time.sleep(0.3)
+
+                        grid_filled = False
+
+                        for i, row in enumerate(rows):
+                            try:
+                                checkboxes = row.find_elements(By.CSS_SELECTOR, 'input[type=checkbox]')
+                                checkboxes = [cb for cb in checkboxes if cb.is_enabled()]
+
+                                if not checkboxes:
+                                    print(f"⚠️ No enabled checkboxes in row {i+1}")
+                                    continue
+
+                                # Randomly select 1–2 checkboxes per row
+                                num_to_select = min(len(checkboxes), random.randint(1, 2))
+                                to_click = random.sample(checkboxes, num_to_select)
+
+                                for checkbox in to_click:
+                                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", checkbox)
+                                    driver.execute_script("arguments[0].click();", checkbox)
+                                    time.sleep(0.2)
+
+                                #print(f"✅ Clicked {num_to_select} checkbox(es) in row {i+1}")
+                                grid_filled = True
+
+                            except Exception as e:
+                                print(f"⚠️ Could not interact with row {i+1}: {e}")
+                                continue
+
+                        if grid_filled:
+                            handled = True
+                        else:
+                            print("❌ Checkbox grid visible but nothing was clickable.")
+
+                        if DEBUG_MODE:
+                            input("🔍 Press Enter to continue...")
+
+                        continue
+
+                except Exception as e:
+                    print(f"⚠️ Checkbox grid answer error: {e}")
+
+
                 # Classic multi-select checkboxes
                 try:
                     checkboxes = q_block.find_elements(By.CSS_SELECTOR, 'input[type=checkbox]')
                     if checkboxes:
-                        print("checkbox found")
+                        print("✅ checkbox found")
                         max_to_select = min(2, len(checkboxes))
                         num_to_select = random.randint(1, max_to_select)
                         selected_boxes = random.sample(checkboxes, num_to_select)
@@ -285,7 +475,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                     select = q_block.find_element(By.TAG_NAME, 'select')
                     options = select.find_elements(By.TAG_NAME, 'option')
                     if options:
-                        print(f"dropdown found")
+                        print(f"✅ dropdown found")
                         options[1].click()
                         handled = True
                         if DEBUG_MODE:
@@ -298,7 +488,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                 try:
                     input_box = q_block.find_element(By.CSS_SELECTOR, 'input[type="text"]')
                     if input_box.is_displayed() and input_box.is_enabled():
-                        print(f"Input box found")
+                        print(f"✅ Input box found")
                         input_box.clear()
                         input_box.send_keys(answer)
                         print(f"Answer {answer}")
@@ -312,7 +502,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                 try:
                     input_box = q_block.find_element(By.CSS_SELECTOR, 'input[type="number"]')
                     if input_box.is_displayed() and input_box.is_enabled():
-                        print(f"Numeric box found")
+                        print(f"✅ Numeric box found")
                         input_box.clear()
                         input_box.send_keys(answer)
                         print(f"Answer {answer}")
@@ -328,7 +518,7 @@ def run_survey(driver, survey_url: str, profile: dict):
                     print(f"Checking for info screen \n {info_screen}")
                     
                     if info_screen.is_displayed():
-                        print(f"Info screen found")
+                        print(f"✅ Info screen found")
                         info_screen.clear()
                         handled = True
                         if DEBUG_MODE:
@@ -338,40 +528,6 @@ def run_survey(driver, survey_url: str, profile: dict):
                     pass
 
 
-                try:
-                    slider_blocks = q_block.find_elements(By.CSS_SELECTOR, ".sq-sliderpoints-container")
-                    if not slider_blocks:
-                        print("no slider question found")
-                        continue
-                    
-                    print("✅ slider question found")
-
-                    for block in slider_blocks:
-                        try:
-                            slider = block.find_element(By.CLASS_NAME, "ui-slider")
-                            handle = slider.find_element(By.CLASS_NAME, "ui-slider-handle")
-                            
-                            # Scroll into view
-                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", slider)
-                            time.sleep(0.2)
-
-                            # Get width of slider bar
-                            slider_width = slider.size['width']
-                            
-                            # Random offset between 10% to 90% of width
-                            offset = int(slider_width * random.uniform(0.1, 0.9))
-                            
-                            # Drag handle to the offset
-                            ActionChains(driver).click_and_hold(handle).move_by_offset(offset, 0).release().perform()
-                            print(f"✅ Slider moved by offset: {offset}px")
-
-                        except Exception as e:
-                            print(f"⚠️ Failed to move slider: {e}")
-                    
-                    continue
-
-                except Exception as e:
-                    print(f"⚠️ Slider question handling failed: {e}")
 
 
             if not handled:
