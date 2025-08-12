@@ -1,3 +1,4 @@
+from selenium.webdriver.common.by import By
 def answer_dropdown(select, DEBUG_MODE=False):
     try:
         options = select.find_elements(By.TAG_NAME, 'option')

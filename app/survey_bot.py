@@ -6,7 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from app.answerer import answer_question
 from app.utils.alert_utils import show_manual_alert
-
+from app.next_click import safe_click_next
 # question handlers (unchanged)
 from app.question_handlers import (
     answer_textarea,
@@ -21,6 +21,7 @@ from app.question_handlers import (
     answer_dropdown,
     answer_input_box,
     answer_numeric_box,
+    answer_ranksort,
 )
 
 # -------------------------
@@ -63,17 +64,20 @@ def has_actionable_inputs(block):
 
 
 
-def safe_click_next(driver, timeout=3):
-    """Click NEXT safely if available."""
-    try:
-        next_btn = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.ID, "btn_continue"))
-        )
-        driver.execute_script("arguments[0].click();", next_btn)
-        return True
-    except Exception as e:
-        print(f"⚠️ Next click failed: {e}")
-        return False
+#def safe_click_next(driver, timeout=3):
+#    """Click NEXT safely if available."""
+#    try:
+#
+#
+#        next_btn = WebDriverWait(driver, timeout).until(
+#            EC.element_to_be_clickable((By.ID, "btn_continue"))
+#        )
+#        driver.execute_script("arguments[0].click();", next_btn)
+#
+#        return True
+#    except Exception as e:
+#        print(f"⚠️ Next click failed: {e}")
+#        return False
 
 
 def wait_inputs_ready(block, timeout=3):
@@ -123,7 +127,7 @@ def run_survey(driver, survey_url: str, profile: dict):
             print("\n--- page loaded ---\n")
             all_blocks = driver.find_elements(By.CSS_SELECTOR, 'div.question, div[class*="question"]')
             print(f"All Questions: {len(all_blocks)}")
-
+            
             # PAGE-LEVEL: filter to actionable blocks; do NOT click Next inside the loop
             actionable_blocks = [b for b in all_blocks if has_actionable_inputs(b)]
 
@@ -207,6 +211,23 @@ def run_survey(driver, survey_url: str, profile: dict):
                         handled = True
                 except Exception as e:
                     print(f"⚠️ Slider question handling failed: {e}")
+                if handled: 
+                    page_handled_any = True
+                    continue
+
+                # --- RankSort (dropdowns or drag+drop) ---
+                try:
+                    # detect RankSort by containers or by “many selects in one question”
+                    ranksort_markers = q_block.find_elements(By.CSS_SELECTOR,
+                        ".sq-ranksort-container, .sq-ranksort-dropdowns-container, [id^='question_'][class*='ranksort']")
+                    select_like = q_block.find_elements(By.CSS_SELECTOR, "table.grid select.input.dropdown")
+
+                    if ranksort_markers or len(select_like) >= 3:
+                        print("✅ RankSort detected")
+                        if answer_ranksort(select_like, min_to_rank=3, driver=driver, DEBUG_MODE=DEBUG_MODE):
+                            handled = True
+                except Exception as e:
+                    print(f"⚠️ RankSort detection/handling error: {e}")
                 if handled: 
                     page_handled_any = True
                     continue
@@ -319,7 +340,10 @@ def run_survey(driver, survey_url: str, profile: dict):
                 continue  # after manual, page should change and we re-loop
 
             # Otherwise try Next (some pages auto-advance; this is harmless)
-            safe_click_next(driver)
+            #safe_click_next(driver)
+            if not safe_click_next(driver, timeout=3):
+                # optional: your own retry/log
+                print("Next failed")
 
     finally:
         driver.quit()

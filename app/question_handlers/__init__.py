@@ -10,7 +10,7 @@ from .classic_checkbox import answer_classic_checkbox
 from .dropdown import answer_dropdown
 from .input_box import answer_input_box
 from .numeric_box import answer_numeric_box
-
+from .ranksort import answer_ranksort
 __all__ = [
     "answer_textarea",
     "answer_button_rating",
@@ -23,6 +23,7 @@ __all__ = [
     "answer_classic_checkbox",
     "answer_dropdown",
     "answer_input_box",
-    "answer_numeric_box"
+    "answer_numeric_box",
+    "answer_ranksort"
     
 ]
